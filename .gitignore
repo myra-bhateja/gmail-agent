@@ -1,0 +1,11 @@
+venv/
+.env
+token.json
+credentials.json
+data/
+outputs/
+__pycache__/
+*.pyc
+eval/sample_emails/
+eval/labels.json
+eval/eval_results.json
