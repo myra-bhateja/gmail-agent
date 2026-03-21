@@ -58,15 +58,21 @@ result = px.bar(query_result, x='{columns[0] if columns else "x"}',
 
     try:
         exec(code, {}, local_scope)
+        exec(code, {}, local_scope)
         fig = local_scope.get('result')
 
         if fig is None:
             return {'success': False, 'error': 'No figure assigned to result'}
 
+        # Force white background so saved PNG is not black
+        fig.update_layout(
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+            font_color='black'
+        )
+
         chart_path = os.path.join(OUTPUT_DIR, 'chart.png')
         fig.write_image(chart_path, width=900, height=500, scale=2)
-        print("[Visualiser Agent] Chart saved.")
-        return {'success': True, 'chart_path': chart_path, 'figure': fig}
-
+        
     except Exception as e:
         return {'success': False, 'error': str(e)}
