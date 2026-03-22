@@ -147,6 +147,20 @@ footer { visibility: hidden; }
     visibility: visible !important;
     opacity: 1 !important;
 }
+[data-testid="stModal"] {
+    background: white !important;
+}
+[data-testid="stModal"] p {
+    color: #333333 !important;
+}
+[data-testid="stModal"] h1,
+[data-testid="stModal"] h2,
+[data-testid="stModal"] h3 {
+    color: #72243e !important;
+}
+[data-testid="stModal"] li {
+    color: #333333 !important;
+}
 </style>
 
 <script>
@@ -193,7 +207,7 @@ with st.sidebar:
     st.divider()
 
     st.markdown("**Agent**")
-    max_emails = st.slider("Max emails to fetch", 5, 15, 10, step=5)
+    max_emails = st.slider("Max emails to fetch", 2, 10, 5, step=1)
 
     if st.button("Run agent now", type='primary'):
         from run_agent_once import run_once
