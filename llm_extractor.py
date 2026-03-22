@@ -48,3 +48,31 @@ Return ONLY valid JSON, no extra text, no markdown fences:
             "category"          : "other",
             "sentiment"         : "neutral"
         }
+    
+def generate_reply(email: dict, extracted: dict) -> str:
+    prompt = f"""
+You are a professional email assistant. Write a concise, polite reply
+to the email below. Keep it under 100 words. Do not use placeholders
+like [Your Name] — just write the body of the reply.
+
+EMAIL DETAILS:
+From: {email.get('sender', '')}
+Subject: {email.get('subject', '')}
+Body: {email.get('body', '')[:1000]}
+
+CONTEXT:
+Category: {extracted.get('category', '')}
+Urgency: {extracted.get('urgency', '')}
+Action required: {extracted.get('action_required', '')}
+Action description: {extracted.get('action_description', '')}
+Sentiment: {extracted.get('sentiment', '')}
+
+Write only the reply body. No subject line, no greeting header,
+no sign-off name. Start directly with the reply content.
+"""
+
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=prompt
+    )
+    return response.text.strip()

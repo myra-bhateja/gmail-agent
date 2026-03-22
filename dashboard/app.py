@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+from PIL import Image
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tools.db import run_query
@@ -15,11 +16,61 @@ load_dotenv()
 
 SHEET_URL = os.getenv('SHEET_PUBLIC_URL', '')
 
+try:
+    _logo_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'galogo.png'
+    )
+    logo = Image.open(_logo_path)
+except Exception:
+    logo = None
+
 st.set_page_config(
     page_title='Gmail Agent',
-    page_icon='../galogo.png',    # if you have a logo image
-    layout='wide'
+    page_icon=logo if logo else 'G',
+    layout='wide',
+    initial_sidebar_state='expanded'   # ✅ THIS IS KEY
 )
+
+# ── About popup on first visit ────────────────────────────
+if 'show_about' not in st.session_state:
+    st.session_state['show_about'] = True
+
+@st.dialog("Welcome to Gmail AI Agent", width="large")
+def show_about_dialog():
+    st.markdown("**by Myra Bhateja**")
+    st.divider()
+    st.markdown("""
+    An end-to-end AI pipeline that connects to a Gmail inbox, extracts
+    structured information from every email using Google Gemini 2.5 Flash,
+    and organises it into a live dashboard, without any manual input.
+
+    The agent runs on demand. For each email it identifies the sender's
+    intent, assigns an urgency level, classifies the category, reads the
+    sentiment, and flags whether action is needed - all in a single AI pass.
+    Results are stored in both SQLite and Google Sheets simultaneously.
+
+    Every processed email also comes with a suggested reply, generated
+    automatically based on the email's content, tone, and required action.
+
+    A separate multi-agent analysis pipeline lets you ask plain English
+    questions about your inbox data. Four specialised agents work in sequence
+    -> Loader, Query, Analyst, and Visualiser, all triggered by one question.
+    """)
+    st.divider()
+    st.markdown("""
+    **Tech stack**
+    - LLM — Google Gemini 2.5 Flash
+    - Email source — Gmail API
+    - Database — SQLite + Google Sheets
+    - Dashboard — Streamlit + Plotly
+    - Language — Python 3.11
+    """)
+    st.caption("Click X to close and get started! Visit the About page anytime:)")
+
+if st.session_state['show_about']:
+    show_about_dialog()
+    st.session_state['show_about'] = False
 
 # ── Pink theme ────────────────────────────────────────────
 st.markdown("""
@@ -70,19 +121,65 @@ h1, h2, h3 { color: #72243e !important; }
 .stSuccess { background: #fbeaf0; border-color: #f4c0d1; color: #72243e; }
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
-header { visibility: hidden; }
+[data-testid="stToolbar"] { visibility: hidden; }
+[data-testid="stDecoration"] { display: none; }
 [data-testid="stException"] button { display: none !important; }
-[data-testid="stSidebarNav"] { display: none; }
 [title="streamlit"] { display: none; }
+[data-testid="stHeader"] {
+    background-color: #fff0f5 !important;
+    border-bottom: 1px solid #f4c0d1 !important;
+}
+
+/* ── All sidebar toggle buttons (open + collapsed state) ── */
+[data-testid="stHeader"] button,
+[data-testid="collapsedControl"],
+[data-testid="collapsedControl"] button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+[data-testid="stHeader"] button svg,
+[data-testid="collapsedControl"] svg {
+    fill: #72243e !important;
+    stroke: #72243e !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
 </style>
+
+<script>
+// Force sidebar toggle button visible — runs after Streamlit renders
+const fixSidebarToggle = () => {
+    const selectors = [
+        '[data-testid="collapsedControl"]',
+        '[data-testid="collapsedControl"] button',
+        '[data-testid="stSidebarCollapsedControl"]',
+    ];
+    selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+            el.style.setProperty('display', 'block', 'important');
+            el.style.setProperty('visibility', 'visible', 'important');
+            el.style.setProperty('opacity', '1', 'important');
+            el.style.setProperty('pointer-events', 'auto', 'important');
+        });
+    });
+};
+
+// Run on load and observe DOM changes (Streamlit re-renders dynamically)
+fixSidebarToggle();
+const observer = new MutationObserver(fixSidebarToggle);
+observer.observe(document.body, { childList: true, subtree: true });
+</script>
 """, unsafe_allow_html=True)
-
 # ── Sidebar ───────────────────────────────────────────────
+st.set_page_config(
+    page_title='Gmail Agent',
+    page_icon=logo if logo else 'G',
+    layout='wide'
+)
 with st.sidebar:
-    st.markdown("### Gmail AI Agent")
-    st.markdown("**Myra Bhateja**")
-    st.divider()
-
     if SHEET_URL:
         st.markdown(
             f'<a href="{SHEET_URL}" target="_blank">'
@@ -116,36 +213,38 @@ with st.sidebar:
     st.markdown("2. Click **Run agent now** above")
     st.markdown("3. Watch the Live Agent Feed update")
 
-    test_subject = "Gmail Agent Trial"
-    test_body    = "Hi, this is a test email to see the Gmail AI Agent in action.Please add content that is somewhat varied to test the agent's ability to extract different categories, urgencies, and sentiments. Thanks!"
-    mailto_link  = (
-        f"mailto:myrabhateja@gmail.com"
-        f"?subject={test_subject.replace(' ', '%20')}"
-        f"&body={test_body.replace(' ', '%20').replace(',', '%2C')}"
+    gmail_link = (
+        "https://mail.google.com/mail/?view=cm"
+        "&to=myrabhateja@gmail.com"
+        "&su=Gmail+Agent+Trial"
+        "&body=Hi%2C+this+is+a+test+email+for+the+Gmail+AI+Agent.%0A%0A"
+        "Please+feel+free+to+write+something+with+a+clear+intent+%E2%80%94+"
+        "a+meeting+request%2C+a+complaint%2C+a+sales+pitch%2C+or+an+urgent+ask.%0A"
+        "The+agent+will+extract+the+urgency%2C+sentiment+and+category%2C+"
+        "and+generate+a+suggested+reply+automatically."
     )
 
     st.markdown(
-        f'<a href="{mailto_link}" target="_blank">'
+        f'<a href="{gmail_link}" target="_blank">'
         f'<button style="width:100%;background:#fff0f5;color:#72243e;'
         f'border:1px solid #f4c0d1;padding:6px 12px;border-radius:6px;'
         f'cursor:pointer;font-size:12px;font-weight:500;margin-top:6px">'
         f'Send test email</button></a>',
         unsafe_allow_html=True
     )
-    st.caption("Opens your Gmail with receiver and subject pre-filled")
+    st.caption("Opens Gmail in browser with receiver and subject pre-filled")
 
     st.divider()
 
     page = st.radio(
-        label='',
-        options=[
+        "Navigation",
+        [
             "Live Agent Feed",
             "Email Log",
             "Ask the Agent",
             "About"
         ]
     )
-
 # ── Log helpers ───────────────────────────────────────────
 LOG_FILE = os.path.join('data', 'agent_log.jsonl')
 os.makedirs('data', exist_ok=True)
@@ -357,8 +456,65 @@ elif page == "Email Log":
         if sel_cat != 'All' and 'category'        in df.columns: filtered = filtered[filtered['category']        == sel_cat]
         if sel_act != 'All' and 'action_required' in df.columns: filtered = filtered[filtered['action_required'] == sel_act]
 
-        st.dataframe(filtered, use_container_width=True, height=400)
+        st.divider()
+        st.subheader("Emails")
+        st.caption("Click any email to expand it and generate a reply.")
 
+        for idx, row in filtered.iterrows():
+            subject  = str(row.get('subject', 'No subject'))
+            sender   = str(row.get('from',    'Unknown'))
+            urgency  = str(row.get('urgency', ''))
+            category = str(row.get('category', ''))
+
+            with st.expander(f"{subject}  —  {sender}"):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.markdown(f"**Urgency:** {urgency}")
+                c2.markdown(f"**Category:** {category}")
+                c3.markdown(f"**Action:** {row.get('action_required', '')}")
+                c4.markdown(f"**Sentiment:** {row.get('sentiment', '')}")
+
+                if row.get('summary'):
+                    st.markdown(f"**Summary:** {row.get('summary', '')}")
+
+                st.divider()
+
+                reply_key = f"reply_{idx}"
+
+                if st.button("Generate reply", key=f"btn_{idx}"):
+                    from llm_extractor import generate_reply
+
+                    email_dict = {
+                        'sender' : row.get('from', ''),
+                        'subject': row.get('subject', ''),
+                        'body'   : row.get('summary', '')
+                    }
+                    extracted_dict = {
+                        'category'          : row.get('category', ''),
+                        'urgency'           : row.get('urgency', ''),
+                        'action_required'   : row.get('action_required', ''),
+                        'action_description': row.get('action_description', ''),
+                        'sentiment'         : row.get('sentiment', '')
+                    }
+
+                    with st.spinner("Generating reply..."):
+                        reply = generate_reply(email_dict, extracted_dict)
+
+                    st.session_state[reply_key] = reply
+
+                if reply_key in st.session_state:
+                    st.markdown("**Suggested reply:**")
+                    st.markdown(
+                        f'<div style="background:#fff0f5;border:1px solid #f4c0d1;'
+                        f'border-radius:8px;padding:14px;font-size:13px;'
+                        f'color:#72243e;line-height:1.7;">'
+                        f'{st.session_state[reply_key]}'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                    st.code(st.session_state[reply_key], language=None)
+                    st.caption("Copy the text above to use as your reply.")
+
+        st.divider()
         csv = filtered.to_csv(index=False).encode('utf-8')
         st.download_button("Download CSV", csv, "emails.csv", "text/csv")
 
@@ -429,7 +585,7 @@ elif page == "Ask the Agent":
                 st.code(result.get('query_code', ''), language='sql')
 
 # ══════════════════════════════════════════════════════════
-# PAGE 4 — About   #Reading and triaging a single email manually takes around 2 minutes on average.      This gent processes one email in 6 seconds — extracting intent, urgency,         category, sentiment, and action in a ingle pass. That is a 20x speed         improvement per email. At 50 emails a day, this saves over an hour of         manual triage daily.
+# PAGE 4 — About   
 # ══════════════════════════════════════════════════════════
 elif page == "About":
     st.title("About this project")
@@ -441,20 +597,41 @@ elif page == "About":
         st.markdown("""
         ### Gmail AI Agent
 
-        An end-to-end AI pipeline that reads a Gmail inbox, extracts structured
-        information using Google Gemini 2.5 Flash, stores it in SQLite and Google
-        Sheets, and surfaces it through this dashboard.
+        An end-to-end AI pipeline that connects to a Gmail inbox, extracts
+        structured information from every email using Google Gemini 2.5 Flash,
+        and organises it into a live dashboard; without any manual input!
 
-        The agent runs on demand and classifies each email by intent, urgency,
-        category, sentiment, and required action - entirely automatically with no
-        human input.
+        The agent runs on demand. For each email it identifies the sender's
+        intent, assigns an urgency level, classifies the category, reads the
+        sentiment, and flags whether action is needed — all in a single AI pass.
+        Results are stored in both SQLite and Google Sheets simultaneously.
+        
+        Every processed email also comes with a suggested reply, generated
+        automatically based on the email's content, tone, and required action.
+        No copy-pasting or context switching — the reply is ready the moment
+        the email is classified.
 
-        A second pipeline allows plain English questions to be asked about the data.
-        Four specialised agents collaborate to answer each question: a Loader Agent
-        syncs the data, a Query Agent writes and executes real SQL, an Analyst Agent
-        interprets results, and a Visualiser Agent generates the chart.
+        A separate multi-agent analysis pipeline lets you ask plain English
+        questions about your inbox data. Four specialised agents work in sequence:
+        the Loader Agent syncs the latest data, the Query Agent writes and runs
+        real SQL against it, the Analyst Agent turns the numbers into a plain
+        English insight, and the Visualiser Agent picks the right chart and
+        generates it — all triggered by one question.
 
+        
         ### Why it matters
+
+        The average professional receives 120 emails a day and spends
+        over 2 hours managing them. Manual triage: reading, categorising,
+        and deciding what needs action is repetitive and time-consuming.
+
+        This agent handles that in the background. Each email is processed
+        in 6 seconds, 20 times faster than a human reading the same email.
+        At 50 emails a day that is 95 minutes handed back.
+
+        Beyond speed, the agent adds structure. Every email gets a category,
+        an urgency level, a sentiment score, and a suggested action; making
+        it easy to prioritise without opening a single email manually.
 
         
 
