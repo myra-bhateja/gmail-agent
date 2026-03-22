@@ -29,7 +29,7 @@ st.set_page_config(
     page_title='Gmail Agent',
     page_icon=logo if logo else 'G',
     layout='wide',
-    initial_sidebar_state='expanded'   # ✅ THIS IS KEY
+    initial_sidebar_state='expanded'
 )
 
 # ── About popup on first visit ────────────────────────────
@@ -55,7 +55,7 @@ def show_about_dialog():
 
     A separate multi-agent analysis pipeline lets you ask plain English
     questions about your inbox data. Four specialised agents work in sequence
-    -> Loader, Query, Analyst, and Visualiser, all triggered by one question.
+    - Loader, Query, Analyst, and Visualiser, all triggered by one question.
     """)
     st.divider()
     st.markdown("""
@@ -66,7 +66,7 @@ def show_about_dialog():
     - Dashboard — Streamlit + Plotly
     - Language — Python 3.11
     """)
-    st.caption("Click X to close and get started! Visit the About page anytime:)")
+    st.caption("Click X to close and get started. Visit the About page anytime.")
 
 if st.session_state['show_about']:
     show_about_dialog()
@@ -129,9 +129,6 @@ footer { visibility: hidden; }
     background-color: #fff0f5 !important;
     border-bottom: 1px solid #f4c0d1 !important;
 }
-
-
-/* ── All sidebar toggle buttons (open + collapsed state) ── */
 [data-testid="stHeader"] button,
 [data-testid="collapsedControl"],
 [data-testid="collapsedControl"] button {
@@ -163,38 +160,14 @@ footer { visibility: hidden; }
     color: #333333 !important;
 }
 </style>
-
-<script>
-// Force sidebar toggle button visible — runs after Streamlit renders
-const fixSidebarToggle = () => {
-    const selectors = [
-        '[data-testid="collapsedControl"]',
-        '[data-testid="collapsedControl"] button',
-        '[data-testid="stSidebarCollapsedControl"]',
-    ];
-    selectors.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => {
-            el.style.setProperty('display', 'block', 'important');
-            el.style.setProperty('visibility', 'visible', 'important');
-            el.style.setProperty('opacity', '1', 'important');
-            el.style.setProperty('pointer-events', 'auto', 'important');
-        });
-    });
-};
-
-// Run on load and observe DOM changes (Streamlit re-renders dynamically)
-fixSidebarToggle();
-const observer = new MutationObserver(fixSidebarToggle);
-observer.observe(document.body, { childList: true, subtree: true });
-</script>
 """, unsafe_allow_html=True)
+
 # ── Sidebar ───────────────────────────────────────────────
-st.set_page_config(
-    page_title='Gmail Agent',
-    page_icon=logo if logo else 'G',
-    layout='wide'
-)
 with st.sidebar:
+    st.markdown("### Gmail AI Agent")
+    st.markdown("**Myra Bhateja**")
+    st.divider()
+
     if SHEET_URL:
         st.markdown(
             f'<a href="{SHEET_URL}" target="_blank">'
@@ -208,12 +181,15 @@ with st.sidebar:
     st.divider()
 
     st.markdown("**Agent**")
-    max_emails = st.slider("Max emails to fetch", 2, 10, 5, step=1)
+    max_emails = st.slider("Max emails to fetch", 2, 15, 5, step=1)
 
     if st.button("Run agent now", type='primary'):
         from run_agent_once import run_once
+        progress = st.empty()
+        progress.info("Agent started — check Live Agent Feed for updates.")
         with st.spinner("Agent running..."):
             summary = run_once(max_emails=max_emails)
+        progress.empty()
         st.success(summary['message'])
         time.sleep(1)
         st.rerun()
@@ -252,14 +228,15 @@ with st.sidebar:
     st.divider()
 
     page = st.radio(
-        "Navigation",
-        [
+        label='',
+        options=[
             "Live Agent Feed",
             "Email Log",
             "Ask the Agent",
             "About"
         ]
     )
+
 # ── Log helpers ───────────────────────────────────────────
 LOG_FILE = os.path.join('data', 'agent_log.jsonl')
 os.makedirs('data', exist_ok=True)
@@ -298,6 +275,7 @@ def clear_logs():
 if page == "Live Agent Feed":
     st.title("Live Agent Feed")
     st.caption("Watch the agent process emails step by step.")
+    st.info("Run the agent from the sidebar, then stay on this page to watch emails being processed in real time.")
 
     col_a, col_b = st.columns([1, 3])
 
@@ -365,6 +343,13 @@ if page == "Live Agent Feed":
 elif page == "Email Log":
     st.title("Email Log")
     st.caption("All emails processed by the agent.")
+
+    # Auto sync from Sheets on every page load
+    try:
+        from tools.db import sync_from_sheets
+        sync_from_sheets()
+    except Exception:
+        pass
 
     col_refresh, _ = st.columns([1, 5])
     with col_refresh:
@@ -600,7 +585,7 @@ elif page == "Ask the Agent":
                 st.code(result.get('query_code', ''), language='sql')
 
 # ══════════════════════════════════════════════════════════
-# PAGE 4 — About   
+# PAGE 4 — About
 # ══════════════════════════════════════════════════════════
 elif page == "About":
     st.title("About this project")
@@ -614,13 +599,13 @@ elif page == "About":
 
         An end-to-end AI pipeline that connects to a Gmail inbox, extracts
         structured information from every email using Google Gemini 2.5 Flash,
-        and organises it into a live dashboard; without any manual input!
+        and organises it into a live dashboard — without any manual input.
 
         The agent runs on demand. For each email it identifies the sender's
         intent, assigns an urgency level, classifies the category, reads the
         sentiment, and flags whether action is needed — all in a single AI pass.
         Results are stored in both SQLite and Google Sheets simultaneously.
-        
+
         Every processed email also comes with a suggested reply, generated
         automatically based on the email's content, tone, and required action.
         No copy-pasting or context switching — the reply is ready the moment
@@ -633,29 +618,27 @@ elif page == "About":
         English insight, and the Visualiser Agent picks the right chart and
         generates it — all triggered by one question.
 
-        
         ### Why it matters
 
         The average professional receives 120 emails a day and spends
-        over 2 hours managing them. Manual triage: reading, categorising,
-        and deciding what needs action is repetitive and time-consuming.
+        over 2 hours managing them. Manual triage — reading, categorising,
+        and deciding what needs action — is repetitive and time-consuming.
 
-        This agent handles that in the background. Each email is processed
-        in 6 seconds, 20 times faster than a human reading the same email.
-        At 50 emails a day that is 95 minutes handed back.
+        This agent processes each email in under 2 seconds using Gemini 2.5 Flash,
+        extracting intent, urgency, category, sentiment, and required action in a
+        single pass. At 50 emails a day that is over 90 minutes of triage time
+        handed back daily.
 
         Beyond speed, the agent adds structure. Every email gets a category,
-        an urgency level, a sentiment score, and a suggested action; making
+        an urgency level, a sentiment score, and a suggested action — making
         it easy to prioritise without opening a single email manually.
 
-        
-
         ### Tech stack
-        - LLM - Google Gemini 2.5 Flash
-        - Email source - Gmail API
-        - Database - SQLite + Google Sheets
-        - Dashboard - Streamlit + Plotly
-        - Language - Python 3.11
+        - LLM — Google Gemini 2.5 Flash
+        - Email source — Gmail API
+        - Database — SQLite + Google Sheets
+        - Dashboard — Streamlit + Plotly
+        - Language — Python 3.11
         """)
 
     with col_right:
