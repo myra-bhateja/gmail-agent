@@ -130,6 +130,7 @@ footer { visibility: hidden; }
     border-bottom: 1px solid #f4c0d1 !important;
 }
 
+
 /* ── All sidebar toggle buttons (open + collapsed state) ── */
 [data-testid="stHeader"] button,
 [data-testid="collapsedControl"],
