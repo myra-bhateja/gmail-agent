@@ -344,17 +344,18 @@ elif page == "Email Log":
     st.title("Email Log")
     st.caption("All emails processed by the agent.")
 
-    # Auto sync from Sheets on every page load
     try:
         from tools.db import sync_from_sheets
         sync_from_sheets()
     except Exception:
         pass
 
-    col_refresh, _ = st.columns([1, 5])
+    col_refresh, col_latest, _ = st.columns([1, 1, 4])
     with col_refresh:
         if st.button("Refresh"):
             st.rerun()
+    with col_latest:
+        show_latest = st.toggle("Latest run only")
 
     try:
         df = run_query("SELECT * FROM emails ORDER BY timestamp DESC")
@@ -452,6 +453,15 @@ elif page == "Email Log":
             sel_act = st.selectbox("Action required", ['All', 'yes', 'no'])
 
         filtered = df.copy()
+
+        if show_latest:
+            latest_date = pd.to_datetime(filtered['timestamp'], errors='coerce').max()
+            if pd.notna(latest_date):
+                cutoff   = latest_date - pd.Timedelta(minutes=10)
+                filtered = filtered[
+                    pd.to_datetime(filtered['timestamp'], errors='coerce') >= cutoff
+                ]
+
         if sel_urg != 'All' and 'urgency'         in df.columns: filtered = filtered[filtered['urgency']         == sel_urg]
         if sel_cat != 'All' and 'category'        in df.columns: filtered = filtered[filtered['category']        == sel_cat]
         if sel_act != 'All' and 'action_required' in df.columns: filtered = filtered[filtered['action_required'] == sel_act]
@@ -517,7 +527,6 @@ elif page == "Email Log":
         st.divider()
         csv = filtered.to_csv(index=False).encode('utf-8')
         st.download_button("Download CSV", csv, "emails.csv", "text/csv")
-
 # ══════════════════════════════════════════════════════════
 # PAGE 3 — Ask the Agent
 # ══════════════════════════════════════════════════════════
