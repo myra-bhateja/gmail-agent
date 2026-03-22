@@ -16,6 +16,17 @@ load_dotenv()
 
 SHEET_URL = os.getenv('SHEET_PUBLIC_URL', '')
 
+os.makedirs(os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data'
+), exist_ok=True)
+
+LOG_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'data', 'agent_log.jsonl'
+)
+if not os.path.exists(LOG_FILE):
+    open(LOG_FILE, 'w').close()
+
 try:
     _logo_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -159,6 +170,28 @@ footer { visibility: hidden; }
 [data-testid="stModal"] li {
     color: #333333 !important;
 }
+.stTabs [data-baseweb="tab-list"] {
+    background-color: #fff0f5;
+    border-bottom: 2px solid #f4c0d1;
+    gap: 4px;
+}
+.stTabs [data-baseweb="tab"] {
+    color: #993556;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: 6px 6px 0 0;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #f4c0d1 !important;
+    color: #72243e !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid #d4537e !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: #fbeaf0 !important;
+    color: #72243e !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -184,15 +217,24 @@ with st.sidebar:
     max_emails = st.slider("Max emails to fetch", 2, 15, 5, step=1)
 
     if st.button("Run agent now", type='primary'):
+        import threading
         from run_agent_once import run_once
-        progress = st.empty()
-        progress.info("Agent started — check Live Agent Feed for updates.")
-        with st.spinner("Agent running..."):
-            summary = run_once(max_emails=max_emails)
-        progress.empty()
-        st.success(summary['message'])
-        time.sleep(1)
-        st.rerun()
+
+        if 'agent_running' not in st.session_state:
+            st.session_state['agent_running'] = False
+
+        if not st.session_state['agent_running']:
+            st.session_state['agent_running'] = True
+
+            def run_in_background():
+                run_once(max_emails=max_emails)
+                st.session_state['agent_running'] = False
+
+            thread = threading.Thread(target=run_in_background, daemon=True)
+            thread.start()
+            st.success("Agent started. Go to Live Agent Feed to watch progress.")
+        else:
+            st.warning("Agent is already running.")
 
     st.caption("This may take a moment depending on the number of emails.")
 
@@ -202,17 +244,17 @@ with st.sidebar:
     st.caption("Want to see the agent in action?")
     st.markdown("1. Click below to send a test email")
     st.markdown("2. Click **Run agent now** above")
-    st.markdown("3. Watch the Live Agent Feed update")
+    st.markdown("3. Watch the Live Agent Feed tab update")
 
     gmail_link = (
         "https://mail.google.com/mail/?view=cm"
         "&to=myrabhateja@gmail.com"
-        "&su=Gmail+Agent+Trial"
-        "&body=Hi%2C+this+is+a+test+email+for+the+Gmail+AI+Agent.%0A%0A"
-        "Please+feel+free+to+write+something+with+a+clear+intent+%E2%80%94+"
-        "a+meeting+request%2C+a+complaint%2C+a+sales+pitch%2C+or+an+urgent+ask.%0A"
-        "The+agent+will+extract+the+urgency%2C+sentiment+and+category%2C+"
-        "and+generate+a+suggested+reply+automatically."
+        "&su=Quick+question"
+        "&body=Hi+Myra%2C%0A%0A"
+        "I+wanted+to+check+in+about+our+meeting+next+week.+"
+        "Could+you+confirm+if+Thursday+at+3pm+works+for+you%3F%0A%0A"
+        "Also+let+me+know+if+you+need+any+documents+beforehand.%0A%0A"
+        "Thanks"
     )
 
     st.markdown(
@@ -225,22 +267,7 @@ with st.sidebar:
     )
     st.caption("Opens Gmail in browser with receiver and subject pre-filled")
 
-    st.divider()
-
-    page = st.radio(
-        label='',
-        options=[
-            "Live Agent Feed",
-            "Email Log",
-            "Ask the Agent",
-            "About"
-        ]
-    )
-
 # ── Log helpers ───────────────────────────────────────────
-LOG_FILE = os.path.join('data', 'agent_log.jsonl')
-os.makedirs('data', exist_ok=True)
-
 def write_log(event_type, message, detail='', status='info'):
     entry = {
         'time'      : datetime.now().strftime('%H:%M:%S'),
@@ -269,13 +296,21 @@ def clear_logs():
     if os.path.exists(LOG_FILE):
         open(LOG_FILE, 'w').close()
 
+# ── Tabs ──────────────────────────────────────────────────
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Live Agent Feed",
+    "Email Log",
+    "Ask the Agent",
+    "About"
+])
+
 # ══════════════════════════════════════════════════════════
-# PAGE 1 — Live Agent Feed
+# TAB 1 — Live Agent Feed
 # ══════════════════════════════════════════════════════════
-if page == "Live Agent Feed":
+with tab1:
     st.title("Live Agent Feed")
     st.caption("Watch the agent process emails step by step.")
-    st.info("Run the agent from the sidebar, then stay on this page to watch emails being processed in real time.")
+    st.info("Run the agent from the sidebar, then stay on this tab to watch emails being processed in real time. Once done, check the Email Log tab for full results.")
 
     col_a, col_b = st.columns([1, 3])
 
@@ -308,7 +343,7 @@ if page == "Live Agent Feed":
             st.rerun()
 
     with col_b:
-        st.markdown("**Live log** — newest first, refreshes every 3 seconds")
+        st.markdown("**Live log** — newest first, refreshes every 2 seconds")
         logs = read_logs(30)
 
         STATUS_LABEL = {
@@ -333,14 +368,22 @@ if page == "Live Agent Feed":
                 })
             st.dataframe(pd.DataFrame(rows), use_container_width=True, height=420)
 
-    st.caption("Auto-refreshing every 3 seconds...")
-    time.sleep(3)
-    st.rerun()
+        if logs and logs[0].get('event_type') == 'db_sync' and logs[0].get('status') == 'success':
+            st.success("Agent run complete. Head to the Email Log tab to see results.")
+
+    st.caption("Auto-refreshing every 2 seconds...")
+    if st.session_state.get('agent_running', False):
+        time.sleep(2)
+        st.rerun()
+    else:
+        if logs:
+            time.sleep(2)
+            st.rerun()
 
 # ══════════════════════════════════════════════════════════
-# PAGE 2 — Email Log
+# TAB 2 — Email Log
 # ══════════════════════════════════════════════════════════
-elif page == "Email Log":
+with tab2:
     st.title("Email Log")
     st.caption("All emails processed by the agent.")
 
@@ -365,6 +408,67 @@ elif page == "Email Log":
     if df.empty:
         st.warning("No emails yet. Click Run agent now in the sidebar.")
     else:
+        df['timestamp_dt'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        latest_time        = df['timestamp_dt'].max()
+
+        if pd.notna(latest_time) and len(df) > 1:
+            df_sorted   = df.sort_values('timestamp_dt', ascending=False)
+            time_diffs  = df_sorted['timestamp_dt'].diff().abs()
+            big_gap_idx = time_diffs[time_diffs > pd.Timedelta(minutes=30)].index
+            if len(big_gap_idx) > 0:
+                cutoff_star = df_sorted.loc[big_gap_idx[0], 'timestamp_dt']
+            else:
+                cutoff_star = latest_time - pd.Timedelta(minutes=30)
+        else:
+            cutoff_star = latest_time
+
+        # ── Latest emails at top ──────────────────────────
+        st.subheader("Latest processed emails")
+        st.caption("Emails from the most recent agent run are marked with a star.")
+
+        filtered_top = df.copy()
+        if show_latest and cutoff_star is not None:
+            filtered_top = filtered_top[filtered_top['timestamp_dt'] >= cutoff_star]
+
+        for idx, row in filtered_top.head(10).iterrows():
+            subject = str(row.get('subject', 'No subject'))
+            sender  = str(row.get('from',    'Unknown'))
+            urgency = str(row.get('urgency', ''))
+            is_new  = cutoff_star is not None and pd.notna(row['timestamp_dt']) and row['timestamp_dt'] >= cutoff_star
+            star    = ' ★' if is_new else ''
+
+            with st.expander(f"{subject}{star}  —  {sender}"):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.markdown(f"**Urgency:** {urgency}")
+                c2.markdown(f"**Category:** {row.get('category', '')}")
+                c3.markdown(f"**Action:** {row.get('action_required', '')}")
+                c4.markdown(f"**Sentiment:** {row.get('sentiment', '')}")
+
+                if row.get('summary'):
+                    st.markdown(f"**Summary:** {row.get('summary', '')}")
+
+                st.divider()
+
+                reply_key = f"reply_top_{idx}"
+                if st.button("Generate reply", key=f"btn_top_{idx}"):
+                    from llm_extractor import generate_reply
+                    email_dict     = {'sender': row.get('from', ''), 'subject': row.get('subject', ''), 'body': row.get('summary', '')}
+                    extracted_dict = {'category': row.get('category', ''), 'urgency': row.get('urgency', ''), 'action_required': row.get('action_required', ''), 'action_description': row.get('action_description', ''), 'sentiment': row.get('sentiment', '')}
+                    with st.spinner("Generating reply..."):
+                        reply = generate_reply(email_dict, extracted_dict)
+                    st.session_state[reply_key] = reply
+
+                if reply_key in st.session_state:
+                    st.markdown("**Suggested reply:**")
+                    st.markdown(f'<div style="background:#fff0f5;border:1px solid #f4c0d1;border-radius:8px;padding:14px;font-size:13px;color:#72243e;line-height:1.7;">{st.session_state[reply_key]}</div>', unsafe_allow_html=True)
+                    st.code(st.session_state[reply_key], language=None)
+                    st.caption("Copy the text above to use as your reply.")
+
+        st.divider()
+
+        # ── Analytics ─────────────────────────────────────
+        st.subheader("Analytics")
+
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total",         len(df))
         col2.metric("High urgency",  len(df[df['urgency'] == 'high'])        if 'urgency'         in df.columns else 0)
@@ -379,16 +483,9 @@ elif page == "Email Log":
             if 'urgency' in df.columns:
                 urg = df['urgency'].value_counts().reset_index()
                 urg.columns = ['Urgency', 'Count']
-                fig = px.pie(
-                    urg, names='Urgency', values='Count',
-                    color='Urgency',
-                    color_discrete_map={
-                        'high'  : '#d4537e',
-                        'medium': '#f4c0d1',
-                        'low'   : '#fbeaf0'
-                    },
-                    title='Urgency breakdown'
-                )
+                fig = px.pie(urg, names='Urgency', values='Count', color='Urgency',
+                    color_discrete_map={'high': '#d4537e', 'medium': '#f4c0d1', 'low': '#fbeaf0'},
+                    title='Urgency breakdown')
                 fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -396,11 +493,8 @@ elif page == "Email Log":
             if 'category' in df.columns:
                 cat = df['category'].value_counts().reset_index()
                 cat.columns = ['Category', 'Count']
-                fig2 = px.bar(
-                    cat, x='Category', y='Count',
-                    title='Emails by category',
-                    color_discrete_sequence=['#d4537e']
-                )
+                fig2 = px.bar(cat, x='Category', y='Count', title='Emails by category',
+                    color_discrete_sequence=['#d4537e'])
                 fig2.update_layout(paper_bgcolor='white', plot_bgcolor='white')
                 st.plotly_chart(fig2, use_container_width=True)
 
@@ -408,39 +502,30 @@ elif page == "Email Log":
             if 'sentiment' in df.columns:
                 sent = df['sentiment'].value_counts().reset_index()
                 sent.columns = ['Sentiment', 'Count']
-                fig3 = px.pie(
-                    sent, names='Sentiment', values='Count',
-                    color='Sentiment',
-                    color_discrete_map={
-                        'positive': '#993556',
-                        'neutral' : '#f4c0d1',
-                        'negative': '#72243e'
-                    },
-                    title='Sentiment breakdown'
-                )
+                fig3 = px.pie(sent, names='Sentiment', values='Count', color='Sentiment',
+                    color_discrete_map={'positive': '#993556', 'neutral': '#f4c0d1', 'negative': '#72243e'},
+                    title='Sentiment breakdown')
                 fig3.update_layout(paper_bgcolor='white', plot_bgcolor='white')
                 st.plotly_chart(fig3, use_container_width=True)
 
         if 'timestamp' in df.columns:
             try:
                 st.subheader("Emails over time")
-                time_df               = df.copy()
-                time_df['timestamp']  = pd.to_datetime(time_df['timestamp'], errors='coerce')
-                time_df['Date']       = time_df['timestamp'].dt.date
-                time_counts           = time_df.groupby('Date').size().reset_index(name='Count')
-                fig_time              = px.line(
-                    time_counts, x='Date', y='Count',
-                    markers=True,
-                    title='Emails processed per day',
-                    color_discrete_sequence=['#d4537e']
-                )
+                time_df              = df.copy()
+                time_df['timestamp'] = pd.to_datetime(time_df['timestamp'], errors='coerce')
+                time_df['Date']      = time_df['timestamp'].dt.date
+                time_counts          = time_df.groupby('Date').size().reset_index(name='Count')
+                fig_time             = px.line(time_counts, x='Date', y='Count', markers=True,
+                    title='Emails processed per day', color_discrete_sequence=['#d4537e'])
                 fig_time.update_layout(paper_bgcolor='white', plot_bgcolor='white')
                 st.plotly_chart(fig_time, use_container_width=True)
             except Exception:
                 pass
 
         st.divider()
-        st.subheader("Filter emails")
+
+        # ── All emails filtered ───────────────────────────
+        st.subheader("All emails")
 
         fc1, fc2, fc3 = st.columns(3)
         with fc1:
@@ -454,32 +539,24 @@ elif page == "Email Log":
 
         filtered = df.copy()
 
-        if show_latest:
-            latest_date = pd.to_datetime(filtered['timestamp'], errors='coerce').max()
-            if pd.notna(latest_date):
-                cutoff   = latest_date - pd.Timedelta(minutes=10)
-                filtered = filtered[
-                    pd.to_datetime(filtered['timestamp'], errors='coerce') >= cutoff
-                ]
+        if show_latest and cutoff_star is not None:
+            filtered = filtered[filtered['timestamp_dt'] >= cutoff_star]
 
         if sel_urg != 'All' and 'urgency'         in df.columns: filtered = filtered[filtered['urgency']         == sel_urg]
         if sel_cat != 'All' and 'category'        in df.columns: filtered = filtered[filtered['category']        == sel_cat]
         if sel_act != 'All' and 'action_required' in df.columns: filtered = filtered[filtered['action_required'] == sel_act]
 
-        st.divider()
-        st.subheader("Emails")
-        st.caption("Click any email to expand it and generate a reply.")
-
         for idx, row in filtered.iterrows():
-            subject  = str(row.get('subject', 'No subject'))
-            sender   = str(row.get('from',    'Unknown'))
-            urgency  = str(row.get('urgency', ''))
-            category = str(row.get('category', ''))
+            subject = str(row.get('subject', 'No subject'))
+            sender  = str(row.get('from',    'Unknown'))
+            urgency = str(row.get('urgency', ''))
+            is_new  = cutoff_star is not None and pd.notna(row['timestamp_dt']) and row['timestamp_dt'] >= cutoff_star
+            star    = ' ★' if is_new else ''
 
-            with st.expander(f"{subject}  —  {sender}"):
+            with st.expander(f"{subject}{star}  —  {sender}"):
                 c1, c2, c3, c4 = st.columns(4)
                 c1.markdown(f"**Urgency:** {urgency}")
-                c2.markdown(f"**Category:** {category}")
+                c2.markdown(f"**Category:** {row.get('category', '')}")
                 c3.markdown(f"**Action:** {row.get('action_required', '')}")
                 c4.markdown(f"**Sentiment:** {row.get('sentiment', '')}")
 
@@ -489,48 +566,28 @@ elif page == "Email Log":
                 st.divider()
 
                 reply_key = f"reply_{idx}"
-
                 if st.button("Generate reply", key=f"btn_{idx}"):
                     from llm_extractor import generate_reply
-
-                    email_dict = {
-                        'sender' : row.get('from', ''),
-                        'subject': row.get('subject', ''),
-                        'body'   : row.get('summary', '')
-                    }
-                    extracted_dict = {
-                        'category'          : row.get('category', ''),
-                        'urgency'           : row.get('urgency', ''),
-                        'action_required'   : row.get('action_required', ''),
-                        'action_description': row.get('action_description', ''),
-                        'sentiment'         : row.get('sentiment', '')
-                    }
-
+                    email_dict     = {'sender': row.get('from', ''), 'subject': row.get('subject', ''), 'body': row.get('summary', '')}
+                    extracted_dict = {'category': row.get('category', ''), 'urgency': row.get('urgency', ''), 'action_required': row.get('action_required', ''), 'action_description': row.get('action_description', ''), 'sentiment': row.get('sentiment', '')}
                     with st.spinner("Generating reply..."):
                         reply = generate_reply(email_dict, extracted_dict)
-
                     st.session_state[reply_key] = reply
 
                 if reply_key in st.session_state:
                     st.markdown("**Suggested reply:**")
-                    st.markdown(
-                        f'<div style="background:#fff0f5;border:1px solid #f4c0d1;'
-                        f'border-radius:8px;padding:14px;font-size:13px;'
-                        f'color:#72243e;line-height:1.7;">'
-                        f'{st.session_state[reply_key]}'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+                    st.markdown(f'<div style="background:#fff0f5;border:1px solid #f4c0d1;border-radius:8px;padding:14px;font-size:13px;color:#72243e;line-height:1.7;">{st.session_state[reply_key]}</div>', unsafe_allow_html=True)
                     st.code(st.session_state[reply_key], language=None)
                     st.caption("Copy the text above to use as your reply.")
 
         st.divider()
         csv = filtered.to_csv(index=False).encode('utf-8')
         st.download_button("Download CSV", csv, "emails.csv", "text/csv")
+
 # ══════════════════════════════════════════════════════════
-# PAGE 3 — Ask the Agent
+# TAB 3 — Ask the Agent
 # ══════════════════════════════════════════════════════════
-elif page == "Ask the Agent":
+with tab3:
     st.title("Ask the Agent")
     st.caption("Four agents collaborate to answer questions about your email data.")
 
@@ -594,9 +651,9 @@ elif page == "Ask the Agent":
                 st.code(result.get('query_code', ''), language='sql')
 
 # ══════════════════════════════════════════════════════════
-# PAGE 4 — About
+# TAB 4 — About
 # ══════════════════════════════════════════════════════════
-elif page == "About":
+with tab4:
     st.title("About this project")
     st.divider()
 

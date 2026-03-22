@@ -7,7 +7,10 @@ from tools.db       import sync_from_sheets
 import json, os
 from datetime import datetime
 
-LOG_FILE = os.path.join('data', 'agent_log.jsonl')
+LOG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    'data', 'agent_log.jsonl'
+)
 os.makedirs('data', exist_ok=True)
 
 def write_log(event_type, message, detail='', status='info'):
