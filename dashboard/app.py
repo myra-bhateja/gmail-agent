@@ -248,13 +248,20 @@ with st.sidebar:
 
     gmail_link = (
         "https://mail.google.com/mail/?view=cm"
-        "&to=myrabhateja@gmail.com"
+        "&to=bhatejamyra@gmail.com"
         "&su=Quick+question"
         "&body=Hi+Myra%2C%0A%0A"
         "I+wanted+to+check+in+about+our+meeting+next+week.+"
         "Could+you+confirm+if+Thursday+at+3pm+works+for+you%3F%0A%0A"
         "Also+let+me+know+if+you+need+any+documents+beforehand.%0A%0A"
-        "Thanks"
+        "Thanks%0A%0A"
+        "%0A%0A"
+        "This+is+a+trial+email+to+test+the+Gmail+AI+Agent+in+action.%0A%0A"
+        "Feel+free+to+replace+this+with+any+real+scenario+%E2%80%94+a+meeting+request%2C+"
+        "a+complaint%2C+an+urgent+ask%2C+or+a+sales+pitch.+%0A%0A"
+        "The+agent+will+read+this+email+and+automatically+extract+the+intent%2C+"
+        "urgency%2C+category%2C+sentiment%2C+and+suggest+a+reply.%0A%0A"
+        "Give+it+a+try+and+see+what+it+picks+up."
     )
 
     st.markdown(
